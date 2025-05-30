@@ -22,13 +22,19 @@ const handleError = (error: AxiosError | Error, defaultMessage: string) => {
 
 export const getRevenueReport = async (
   token: string,
-  start_date: string, // ISO date string "YYYY-MM-DD"
-  end_date: string    // ISO date string "YYYY-MM-DD"
+  start_date: string,
+  end_date: string,
+  branchId?: number | 'all'
 ): Promise<RevenueReport> => {
   try {
+    const params: any = { start_date, end_date };
+    if (typeof branchId === 'number') {
+      params.branch_id = branchId;
+    }
+    // If branchId is 'all' or undefined, no branch_id param is sent, backend handles logic.
     const response = await axios.get<RevenueReport>(`${API_BASE_URL}/reports/revenue/`, {
       ...getAuthHeaders(token),
-      params: { start_date, end_date },
+      params: params,
     });
     return response.data;
   } catch (error) {
@@ -38,13 +44,18 @@ export const getRevenueReport = async (
 
 export const getTotalExpensesReport = async (
   token: string,
-  start_date: string, // ISO date string "YYYY-MM-DD"
-  end_date: string    // ISO date string "YYYY-MM-DD"
+  start_date: string,
+  end_date: string,
+  branchId?: number | 'all'
 ): Promise<TotalExpensesReport> => {
   try {
+    const params: any = { start_date, end_date };
+    if (typeof branchId === 'number') {
+      params.branch_id = branchId;
+    }
     const response = await axios.get<TotalExpensesReport>(`${API_BASE_URL}/reports/total-expenses/`, {
       ...getAuthHeaders(token),
-      params: { start_date, end_date },
+      params: params,
     });
     return response.data;
   } catch (error) {
@@ -54,13 +65,18 @@ export const getTotalExpensesReport = async (
 
 export const getProfitLossReport = async (
   token: string,
-  start_date: string, // ISO date string "YYYY-MM-DD"
-  end_date: string    // ISO date string "YYYY-MM-DD"
+  start_date: string,
+  end_date: string,
+  branchId?: number | 'all'
 ): Promise<ProfitLossReport> => {
   try {
+    const params: any = { start_date, end_date };
+    if (typeof branchId === 'number') {
+      params.branch_id = branchId;
+    }
     const response = await axios.get<ProfitLossReport>(`${API_BASE_URL}/reports/profit-loss/`, {
       ...getAuthHeaders(token),
-      params: { start_date, end_date },
+      params: params,
     });
     return response.data;
   } catch (error) {

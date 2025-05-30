@@ -51,6 +51,20 @@ const DefaultLayout: React.FC<DefaultLayoutProps> = ({ children }) => {
               <Button color="inherit" component={Link} href="/(pages)/reports">
                 Reports
               </Button>
+
+              {/* Admin Section Separator / Links */}
+              {user?.role?.name.toLowerCase() === 'admin' && (
+                <>
+                  <Box sx={{mx: 1, borderLeft: '1px solid rgba(255,255,255,0.2)' }} />
+                  <Button color="inherit" component={Link} href="/(pages)/admin/users">
+                    Users (Admin)
+                  </Button>
+                  <Button color="inherit" component={Link} href="/(pages)/admin/branches">
+                    Branches (Admin)
+                  </Button>
+                </>
+              )}
+
               <Typography sx={{ ml: 2, mr: 1 }}>Hi, {user?.username}</Typography>
               <Button color="inherit" onClick={handleLogout}>
                 Logout

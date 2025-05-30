@@ -1,8 +1,9 @@
 from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime
-from .product import Product as ProductSchema # For displaying product details in sale item
-from .customer import Customer as CustomerSchema # For displaying customer details in sale
+from .product import Product as ProductSchema
+from .customer import Customer as CustomerSchema
+from .branch import Branch as BranchSchema # Ensure BranchSchema is imported
 
 # Schemas for SaleItem
 class SaleItemBase(BaseModel):
@@ -29,18 +30,22 @@ class SaleBase(BaseModel):
     customer_id: Optional[int] = None
     # sale_date is auto-generated
     # total_amount is auto-calculated
+    # branch_id will be set based on user or explicit input
 
 class SaleCreate(SaleBase):
     items: List[SaleItemCreate]
+    branch_id: int # Mandatory on creation
 
 class Sale(SaleBase):
     id: int
     sale_date: datetime
     total_amount: float
-    user_id: int # User who made the sale
-    owner_id: int # Business owner
+    user_id: int
+    owner_id: int
+    branch_id: int
     items: List[SaleItem] = []
-    customer: Optional[CustomerSchema] = None # Include customer details
+    customer: Optional[CustomerSchema] = None
+    branch: Optional[BranchSchema] = None # Use the imported BranchSchema
 
     class Config:
         orm_mode = True

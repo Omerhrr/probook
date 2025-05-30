@@ -47,9 +47,13 @@ const saleItemSchema = z.object({
   total_price: z.number(), // Calculated: quantity * unit_price
 });
 
+import { Branch } from '@/types/branch'; // For branch selection
+import branchService from '@/services/branchService'; // To fetch branches for admin
+
 // Zod schema for the overall sale form
 const saleFormSchema = z.object({
   customer_id: z.number().int().optional().nullable(),
+  branch_id: z.number().int().min(1, "Branch is required for the sale"), // Added branch_id
   items: z.array(saleItemSchema).min(1, "At least one item is required in the sale"),
 });
 
@@ -61,63 +65,103 @@ interface SaleFormProps {
   onCancel: () => void;
   isLoading?: boolean;
   initialError?: string | null;
+  enforcedBranchId?: number | null; // For pre-filling/disabling branch
 }
 
-const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, onCancel, isLoading: formSubmitting, initialError }) => {
-  const { token } = useAuth();
+const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, onCancel, isLoading: formSubmitting, initialError, enforcedBranchId }) => {
+  const { token, user } = useAuth(); // Get user for role
+  const isAdmin = user?.role?.name.toLowerCase() === 'admin';
+
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [branches, setBranches] = useState<Branch[]>([]); // For admin branch selector
+
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [itemQuantity, setItemQuantity] = useState<number>(1);
   const [itemUnitPrice, setItemUnitPrice] = useState<number>(0);
 
   const [customerSearchLoading, setCustomerSearchLoading] = useState(false);
   const [productSearchLoading, setProductSearchLoading] = useState(false);
+  const [branchesLoading, setBranchesLoading] = useState(false); // For admin branch dropdown
   const [formError, setFormError] = useState<string | null>(initialError || null);
 
 
   const { control, handleSubmit, watch, setValue, formState: { errors } } = useForm<SaleFormData>({
     resolver: zodResolver(saleFormSchema),
-    defaultValues: { customer_id: null, items: [] },
+    defaultValues: {
+      customer_id: null,
+      items: [],
+      branch_id: enforcedBranchId || (isAdmin ? undefined : user?.branch?.id) || undefined,
+    },
   });
 
   const { fields, append, remove } = useFieldArray({ control, name: "items" });
   const currentItems = watch("items");
+  const selectedBranchId = watch("branch_id"); // Watch the selected branch_id
 
-  // Fetch customers
-  const fetchCustomers = useCallback(async (searchTerm: string = "") => {
-    if (!token) return;
-    setCustomerSearchLoading(true);
-    try {
-      // In a real app, you'd filter by searchTerm on backend or fetch a relevant subset
-      const data = await customerService.getCustomers(token, 0, 50); // Limit for autocomplete
-      setCustomers(data);
-    } catch (error) {
-      console.error("Failed to fetch customers:", error);
-    } finally {
-      setCustomerSearchLoading(false);
+  // Fetch branches for Admin selector
+  const fetchBranchesForAdmin = useCallback(async () => {
+    if (isAdmin && !enforcedBranchId && token) {
+      setBranchesLoading(true);
+      try {
+        const branchesData = await branchService.getBranches(token);
+        setBranches(branchesData);
+      } catch (error) { console.error("Failed to fetch branches:", error); }
+      finally { setBranchesLoading(false); }
     }
-  }, [token]);
-
-  // Fetch products
-  const fetchProducts = useCallback(async (searchTerm: string = "") => {
-    if (!token) return;
-    setProductSearchLoading(true);
-    try {
-      // In a real app, you'd filter by searchTerm on backend or fetch a relevant subset
-      const data = await productService.getProducts(token, 0, 50); // Limit for autocomplete
-      setProducts(data);
-    } catch (error) {
-      console.error("Failed to fetch products:", error);
-    } finally {
-      setProductSearchLoading(false);
-    }
-  }, [token]);
+  }, [isAdmin, enforcedBranchId, token]);
 
   useEffect(() => {
-    fetchCustomers();
-    fetchProducts();
-  }, [fetchCustomers, fetchProducts]);
+    fetchBranchesForAdmin();
+  }, [fetchBranchesForAdmin]);
+
+
+  // Fetch customers based on selected branch
+  const fetchCustomersForBranch = useCallback(async () => {
+    if (!token || !selectedBranchId) { setCustomers([]); return; }
+    setCustomerSearchLoading(true);
+    try {
+      const data = await customerService.getCustomers(token, 0, 50, selectedBranchId);
+      setCustomers(data);
+    } catch (error) { console.error("Failed to fetch customers:", error); setCustomers([]); }
+    finally { setCustomerSearchLoading(false); }
+  }, [token, selectedBranchId]);
+
+  // Fetch products based on selected branch
+  const fetchProductsForBranch = useCallback(async () => {
+    if (!token || !selectedBranchId) { setProducts([]); return; }
+    setProductSearchLoading(true);
+    try {
+      const data = await productService.getProducts(token, 0, 50, selectedBranchId);
+      setProducts(data);
+    } catch (error) { console.error("Failed to fetch products:", error); setProducts([]); }
+    finally { setProductSearchLoading(false); }
+  }, [token, selectedBranchId]);
+
+  useEffect(() => {
+    // When selectedBranchId changes, fetch relevant customers and products
+    if (selectedBranchId) {
+      fetchCustomersForBranch();
+      fetchProductsForBranch();
+      // Reset customer and product selections if branch changes
+      setValue('customer_id', null);
+      setSelectedProduct(null);
+      setValue('items', []); // Clear items as products/customers are branch-specific
+    } else {
+      setCustomers([]);
+      setProducts([]);
+    }
+  }, [selectedBranchId, fetchCustomersForBranch, fetchProductsForBranch, setValue]);
+
+  // Set initial branch for branch manager
+  useEffect(() => {
+    if (isBranchManager && user?.branch?.id && !enforcedBranchId) {
+      setValue('branch_id', user.branch.id);
+    }
+    if (enforcedBranchId) { // If branchId passed from list page (admin selection)
+        setValue('branch_id', enforcedBranchId);
+    }
+  }, [isBranchManager, user?.branch?.id, setValue, enforcedBranchId]);
 
 
   const handleAddSaleItem = () => {
@@ -146,6 +190,7 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, onCancel, isLoading: form
     setFormError(null);
     const saleCreateData: SaleCreateData = {
       customer_id: data.customer_id,
+      branch_id: Number(data.branch_id), // Ensure branch_id is included and is a number
       items: data.items.map(item => ({
         product_id: item.product_id,
         quantity: item.quantity,
@@ -155,7 +200,7 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, onCancel, isLoading: form
     onSubmit(saleCreateData).catch(err => setFormError(err.message || "Submission failed"));
   };
 
-  useEffect(()_ => {
+  useEffect(() => { // Corrected from _ to ()
       if(initialError) setFormError(initialError);
   }, [initialError]);
 
@@ -166,11 +211,34 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, onCancel, isLoading: form
       {formError && <Alert severity="error" sx={{ mb: 2 }}>{formError}</Alert>}
       {errors.items?.message && <Alert severity="warning" sx={{ mb: 2 }}>{errors.items.message}</Alert>}
       {errors.items?.root?.message && <Alert severity="warning" sx={{ mb: 2 }}>{errors.items.root.message}</Alert>}
+      {errors.branch_id?.message && <Alert severity="error" sx={{ mb: 2 }}>{errors.branch_id.message}</Alert>}
 
 
       <Grid container spacing={3}>
+        {/* Branch Selection for Admin */}
+        {isAdmin && !enforcedBranchId && (
+          <Grid item xs={12} md={6}>
+            <Controller
+              name="branch_id"
+              control={control}
+              render={({ field }) => (
+                <Autocomplete
+                  options={branches}
+                  getOptionLabel={(option) => option.name}
+                  onChange={(_, newValue) => field.onChange(newValue ? newValue.id : null)}
+                  value={branches.find(b => b.id === field.value) || null}
+                  loading={branchesLoading}
+                  renderInput={(params) => (
+                    <TextField {...params} label="Select Branch for Sale" fullWidth required error={!!errors.branch_id} helperText={errors.branch_id?.message} />
+                  )}
+                />
+              )}
+            />
+          </Grid>
+        )}
+
         {/* Customer Selection */}
-        <Grid item xs={12}>
+        <Grid item xs={12} md={isAdmin && !enforcedBranchId ? 6 : 12}>
           <Controller
             name="customer_id"
             control={control}
@@ -181,20 +249,14 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, onCancel, isLoading: form
                 onChange={(_, newValue) => field.onChange(newValue ? newValue.id : null)}
                 value={customers.find(c => c.id === field.value) || null}
                 loading={customerSearchLoading}
+                disabled={!selectedBranchId && !enforcedBranchId} // Disable if no branch selected by admin or enforced
                 renderInput={(params) => (
                   <TextField
                     {...params}
                     label="Select Customer (Optional)"
                     variant="outlined"
-                    InputProps={{
-                      ...params.InputProps,
-                      endAdornment: (
-                        <>
-                          {customerSearchLoading ? <CircularProgress color="inherit" size={20} /> : null}
-                          {params.InputProps.endAdornment}
-                        </>
-                      ),
-                    }}
+                    helperText={!selectedBranchId && !enforcedBranchId && isAdmin ? "Please select a branch first" : ""}
+                    InputProps={{ ...params.InputProps, endAdornment: (<>{customerSearchLoading ? <CircularProgress color="inherit" size={20} /> : null}{params.InputProps.endAdornment}</>)}}
                   />
                 )}
               />
@@ -210,11 +272,12 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, onCancel, isLoading: form
               <Grid item xs={12} sm={4}>
                 <Autocomplete
                   options={products}
-                  getOptionLabel={(option) => `${option.name} (Code: ${option.code})`}
+                  getOptionLabel={(option) => `${option.name} (Code: ${option.code}) - Stock: ${option.opening_stock || 0}`}
                   value={selectedProduct}
+                  disabled={!selectedBranchId && !enforcedBranchId}
                   onChange={(_, newValue) => {
                     setSelectedProduct(newValue);
-                    setItemUnitPrice(newValue ? newValue.selling_price : 0); // Default to selling price
+                    setItemUnitPrice(newValue ? newValue.selling_price : 0);
                   }}
                   loading={productSearchLoading}
                   renderInput={(params) => (
@@ -222,20 +285,13 @@ const SaleForm: React.FC<SaleFormProps> = ({ onSubmit, onCancel, isLoading: form
                       {...params}
                       label="Select Product"
                       variant="outlined"
-                      InputProps={{
-                        ...params.InputProps,
-                        endAdornment: (
-                          <>
-                            {productSearchLoading ? <CircularProgress color="inherit" size={20} /> : null}
-                            {params.InputProps.endAdornment}
-                          </>
-                        ),
-                      }}
+                      helperText={!selectedBranchId && !enforcedBranchId && isAdmin ? "Please select a branch first" : ""}
+                      InputProps={{ ...params.InputProps, endAdornment: (<>{productSearchLoading ? <CircularProgress color="inherit" size={20} /> : null}{params.InputProps.endAdornment}</>)}}
                     />
                   )}
                 />
               </Grid>
-              <Grid item xs={6} sm={3}>
+              <Grid item xs={6} sm={3}> {/* Quantity */}
                 <TextField
                   label="Quantity"
                   type="number"

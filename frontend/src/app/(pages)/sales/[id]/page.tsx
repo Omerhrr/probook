@@ -118,6 +118,9 @@ const SaleDetailPage = () => {
             <Typography variant="subtitle1"><strong>Total Amount:</strong> ${sale.total_amount.toFixed(2)}</Typography>
           </Grid>
           <Grid item xs={12} sm={6}>
+            <Typography variant="subtitle1"><strong>Branch:</strong> {sale.branch?.name || 'N/A'}</Typography>
+          </Grid>
+          <Grid item xs={12} sm={6}>
             <Typography variant="subtitle1"><strong>Processed by (User ID):</strong> {sale.user_id}</Typography>
           </Grid>
         </Grid>

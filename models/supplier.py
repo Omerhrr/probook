@@ -1,19 +1,30 @@
 from sqlalchemy import Column, Integer, String, ForeignKey
-from sqlalchemy.orm import relationship
-from database import Base # Assuming Base is defined in database.py
-from models.user import User # Assuming User model is in models/user.py
+from sqlalchemy.orm import relationship, Mapped, mapped_column
+from typing import Optional, List
+from database import Base
+from models.user import User
+from models.branch import Branch # Import Branch
+# Assuming Product and Expense models will be updated or are Mapped-compatible
+from models.product import Product
+from models.expense import Expense
+
 
 class Supplier(Base):
     __tablename__ = "suppliers"
 
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, index=True, nullable=False)
-    contact_person = Column(String, nullable=True)
-    email = Column(String, unique=True, index=True, nullable=True)
-    phone = Column(String, nullable=True)
-    address = Column(String, nullable=True)
-    owner_id = Column(Integer, ForeignKey("users.id"))
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    name: Mapped[str] = mapped_column(String, index=True, nullable=False)
+    contact_person: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    email: Mapped[Optional[str]] = mapped_column(String, unique=True, index=True, nullable=True)
+    phone: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    address: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
-    owner = relationship("User")
-    products = relationship("Product", back_populates="supplier")
-    expenses = relationship("Expense", back_populates="supplier")
+    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False) # Assuming owner is mandatory
+    branch_id: Mapped[int] = mapped_column(ForeignKey("branches.id"), nullable=False) # Suppliers must belong to a branch
+
+    # Relationships
+    owner: Mapped["User"] = relationship() # User model needs to define `suppliers_owned` or similar
+    branch: Mapped["Branch"] = relationship(back_populates="suppliers", lazy="joined")
+
+    products: Mapped[List["Product"]] = relationship(back_populates="supplier")
+    expenses: Mapped[List["Expense"]] = relationship(back_populates="supplier")

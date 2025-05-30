@@ -23,13 +23,17 @@ const handleError = (error: AxiosError | Error, defaultMessage: string) => {
 export const getSuppliers = async (
   token: string,
   skip: number = 0,
-  limit: number = 100
+  limit: number = 100,
+  branchId?: number | 'all' // Add branchId parameter
 ): Promise<Supplier[]> => {
   try {
-    const response = await axios.get<Supplier[]>(
-      `${API_BASE_URL}/suppliers/?skip=${skip}&limit=${limit}`,
-      getAuthHeaders(token)
-    );
+    let url = `${API_BASE_URL}/suppliers/?skip=${skip}&limit=${limit}`;
+    if (typeof branchId === 'number') {
+      url += `&branch_id=${branchId}`;
+    }
+    // If branchId is 'all' or undefined, and user is admin, backend returns all.
+    // If user is branch manager, backend scopes to their branch.
+    const response = await axios.get<Supplier[]>(url, getAuthHeaders(token));
     return response.data;
   } catch (error) {
     throw new Error(handleError(error as AxiosError, 'Failed to fetch suppliers.'));

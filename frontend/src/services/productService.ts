@@ -23,13 +23,18 @@ const handleError = (error: AxiosError | Error, defaultMessage: string) => {
 export const getProducts = async (
   token: string,
   skip: number = 0,
-  limit: number = 100
+  limit: number = 100,
+  branchId?: number | 'all' // Updated to accept number or 'all'
 ): Promise<Product[]> => {
   try {
-    const response = await axios.get<Product[]>(
-      `${API_BASE_URL}/products/?skip=${skip}&limit=${limit}`,
-      getAuthHeaders(token)
-    );
+    let url = `${API_BASE_URL}/products/?skip=${skip}&limit=${limit}`;
+    if (typeof branchId === 'number') {
+      url += `&branch_id=${branchId}`;
+    }
+    // If branchId is 'all' or undefined, no branch_id query param is sent.
+    // Backend handles scoping for branch_manager if no branch_id is sent.
+    // Backend returns all if admin sends no branch_id.
+    const response = await axios.get<Product[]>(url, getAuthHeaders(token));
     return response.data;
   } catch (error) {
     throw new Error(handleError(error as AxiosError, 'Failed to fetch products.'));

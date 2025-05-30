@@ -24,8 +24,9 @@ interface GetExpensesParams {
   skip?: number;
   limit?: number;
   category?: string;
-  start_date?: string; // ISO date string
-  end_date?: string;   // ISO date string
+  start_date?: string;
+  end_date?: string;
+  branchId?: number | 'all'; // Added branchId
 }
 
 export const getExpenses = async (
@@ -33,9 +34,15 @@ export const getExpenses = async (
   params: GetExpensesParams = {}
 ): Promise<Expense[]> => {
   try {
+    const queryParams: any = { ...params };
+    if (params.branchId && typeof params.branchId === 'number') {
+      queryParams.branch_id = params.branchId; // Map to backend's expected param name
+    }
+    delete queryParams.branchId; // Remove frontend-specific name before sending
+
     const response = await axios.get<Expense[]>(`${API_BASE_URL}/expenses/`, {
       ...getAuthHeaders(token),
-      params: params, // Pass query parameters
+      params: queryParams,
     });
     return response.data;
   } catch (error) {

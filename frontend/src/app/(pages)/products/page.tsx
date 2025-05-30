@@ -21,6 +21,10 @@ import {
   Typography,
   Alert,
   TablePagination,
+  Select, // For Branch Selector
+  MenuItem, // For Branch Selector
+  FormControl, // For Branch Selector
+  InputLabel, // For Branch Selector
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
@@ -28,14 +32,18 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import ProductFormModal from '@/components/products/ProductFormModal';
 import DeleteConfirmationDialog from '@/components/common/DeleteConfirmationDialog';
 import { ProductCreateData, ProductUpdateData } from '@/types/product';
+import { Branch } from '@/types/branch'; // For branch selector
+import branchService from '@/services/branchService'; // To fetch branches
 
 
 const ProductsPage = () => {
-  const { isAuthenticated, token, loading: authLoading } = useAuth();
+  const { isAuthenticated, token, user, loading: authLoading } = useAuth(); // Get user for role and branch
   const router = useRouter();
-  const [products, setProducts] = useState<Product[]>([]);
-  const [isLoading, setIsLoading] = useState(true); // For page load
-  const [actionError, setActionError] = useState<string | null>(null); // For modal/delete errors
+  const [products, setProducts] = useState<Product[]>([]); // Displayed products (paginated)
+  const [allFetchedProducts, setAllFetchedProducts] = useState<Product[]>([]); // All products from current fetch
+
+  const [isLoading, setIsLoading] = useState(true);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   // Modal states
@@ -51,50 +59,107 @@ const ProductsPage = () => {
   // Pagination state
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
-  const [totalProducts, setTotalProducts] = useState(0); // We don't get this from backend directly yet
+  // totalProducts will be allFetchedProducts.length for client-side pagination
+
+  // Branch selection for Admin
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [selectedBranchId, setSelectedBranchId] = useState<number | 'all' | ''>(''); // '' for unselected/loading for admin
+
+  const isAdmin = user?.role?.name.toLowerCase() === 'admin';
+  const isBranchManager = user?.role?.name.toLowerCase() === 'branch_manager';
+
+  // Fetch branches for Admin selector
+  useEffect(() => {
+    if (isAdmin && token) {
+      branchService.getBranches(token)
+        .then(data => {
+          setBranches(data);
+          // Default to 'all' if admin and branches are loaded
+          if (selectedBranchId === '') setSelectedBranchId('all');
+        })
+        .catch(err => setActionError("Failed to load branches: " + err.message));
+    } else if (isBranchManager && user?.branch?.id) {
+        setSelectedBranchId(user.branch.id); // BM is fixed to their branch
+    }
+  }, [isAdmin, isBranchManager, token, user?.branch?.id]);
+
 
   const fetchProducts = useCallback(async () => {
-    if (!token) return;
-    if (!token) return;
-    setIsLoading(true); // For main page loading
+    if (!token || (!isAdmin && !isBranchManager)) return;
+
+    // Determine effective branchId for fetching
+    let branchIdForFetch: number | 'all' | undefined = undefined;
+    if (isAdmin) {
+      branchIdForFetch = selectedBranchId === '' ? 'all' : selectedBranchId;
+    } else if (isBranchManager) {
+      branchIdForFetch = user?.branch?.id;
+    }
+
+    if (isBranchManager && branchIdForFetch === undefined) {
+        setActionError("Branch manager is not assigned to a branch.");
+        setIsLoading(false);
+        setAllFetchedProducts([]);
+        return;
+    }
+    if (!branchIdForFetch && isAdmin && selectedBranchId === '') { // Admin hasn't selected, don't fetch yet or fetch 'all'
+        // This condition might need adjustment based on desired default behavior for admin
+        // For now, if admin has '' selected (initial state), it will be treated as 'all'.
+        branchIdForFetch = 'all';
+    }
+
+
+    setIsLoading(true);
     setActionError(null);
-    // setSuccessMessage(null); // Clear previous success messages
     try {
-      // This approach of fetching all and slicing client-side is temporary.
-      // Ideally, backend should provide total count for server-side pagination.
-      const allData = await productService.getProducts(token, 0, 10000); // Fetch more if needed
-      setProducts(allData); // Store all products
-      setTotalProducts(allData.length);
-      // The displayed products will be derived from this list using pagination logic later
+      const data = await productService.getProducts(token, 0, 10000, branchIdForFetch);
+      setAllFetchedProducts(data);
     } catch (err: any) {
       setActionError(err.message || 'Failed to fetch products.');
+      setAllFetchedProducts([]);
     } finally {
-      setIsLoading(false); // For main page loading
+      setIsLoading(false);
     }
-  }, [token, page, rowsPerPage]);
+  }, [token, isAdmin, isBranchManager, selectedBranchId, user?.branch?.id]);
 
   useEffect(() => {
     if (!authLoading) {
       if (!isAuthenticated || !token) {
         router.push('/(pages)/login');
+      } else if (isAdmin || isBranchManager) {
+        // Trigger fetch if selectedBranchId is set (for admin) or if user is BM (their branch is known)
+        if ((isAdmin && selectedBranchId !== '') || isBranchManager) {
+            fetchProducts();
+        } else if (isAdmin && selectedBranchId === '') {
+            // Initial state for admin, decide if you want to load "all" by default or wait for selection
+            // Currently, it will fetch 'all' due to getEffectiveBranchIdForFetch logic
+             fetchProducts();
+        }
       } else {
-        fetchProducts();
+        setActionError("You are not authorized to view this page.");
+        setIsLoading(false);
       }
     }
-  }, [isAuthenticated, token, authLoading, router, fetchProducts]);
+  }, [isAuthenticated, token, authLoading, router, fetchProducts, isAdmin, isBranchManager, selectedBranchId]);
+
+  // Client-side pagination logic
+   useEffect(() => {
+    const paginated = allFetchedProducts.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+    setProducts(paginated);
+  }, [allFetchedProducts, page, rowsPerPage]);
+
 
   const handleAddProduct = () => {
     setEditingProduct(null);
-    setIsModalOpen(true);
     setActionError(null);
     setSuccessMessage(null);
+    setIsModalOpen(true);
   };
 
   const handleEditProduct = (product: Product) => {
     setEditingProduct(product);
-    setIsModalOpen(true);
     setActionError(null);
     setSuccessMessage(null);
+    setIsModalOpen(true);
   };
 
   const openDeleteDialog = (product: Product) => {
@@ -110,6 +175,7 @@ const ProductsPage = () => {
     setActionError(null);
     setSuccessMessage(null);
     try {
+      // branch_id should now be part of 'data' from ProductForm
       if (editingProduct) {
         await productService.updateProduct(token, editingProduct.id, data as ProductUpdateData);
         setSuccessMessage('Product updated successfully!');
@@ -118,7 +184,7 @@ const ProductsPage = () => {
         setSuccessMessage('Product created successfully!');
       }
       setIsModalOpen(false);
-      fetchProducts(); // Refresh list
+      fetchProducts();
     } catch (err: any) {
       setActionError(err.message || 'Failed to save product.');
     } finally {
@@ -163,78 +229,78 @@ const ProductsPage = () => {
 
   return (
     <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
-        <Typography variant="h4" component="h1">
-          Products
-        </Typography>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={handleAddProduct} // Updated
-        >
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+        <Typography variant="h4" component="h1">Products</Typography>
+        <Button variant="contained" startIcon={<AddIcon />} onClick={handleAddProduct} disabled={isAdmin && selectedBranchId === 'all' && !editingProduct}>
           Add New Product
         </Button>
       </Box>
 
-      {actionError && ( // Changed from error to actionError
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {actionError}
-        </Alert>
+      {isAdmin && (
+        <FormControl fullWidth sx={{ mb: 2 }} size="small">
+          <InputLabel id="branch-select-label">Filter by Branch</InputLabel>
+          <Select
+            labelId="branch-select-label"
+            value={selectedBranchId}
+            label="Filter by Branch"
+            onChange={(e) => {
+              const value = e.target.value as number | 'all' | '';
+              setSelectedBranchId(value);
+              setPage(0);
+              // fetchProducts will be re-triggered by useEffect watching selectedBranchId
+            }}
+          >
+            <MenuItem value="all"><em>All Branches</em></MenuItem>
+            {branches.map((branch) => (
+              <MenuItem key={branch.id} value={branch.id}>{branch.name}</MenuItem>
+            ))}
+          </Select>
+        </FormControl>
       )}
-      {successMessage && (
-        <Alert severity="success" sx={{ mb: 2 }}>
-          {successMessage}
-        </Alert>
-      )}
+       {isAdmin && selectedBranchId === 'all' && !editingProduct && (
+         <Alert severity="info" sx={{ mb: 2 }}>Please select a specific branch to add a new product, or the product form will require branch selection.</Alert>
+       )}
 
-      <Paper sx={{ width: '100%', overflow: 'hidden' }}>
-        <TableContainer>
-          <Table stickyHeader aria-label="products table">
-            <TableHead>
-              <TableRow>
-                <TableCell>Code</TableCell>
-                <TableCell>Name</TableCell>
-                <TableCell>Category</TableCell>
-                <TableCell>Selling Price</TableCell>
-                <TableCell>Purchase Price</TableCell>
-                <TableCell>Stock</TableCell>
-                <TableCell align="right">Actions</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {products // This should be the paginated slice of all products
-                .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-                .map((product) => (
-                <TableRow hover key={product.id}>
-                  <TableCell>{product.code}</TableCell>
-                  <TableCell>{product.name}</TableCell>
-                  <TableCell>{product.category || 'N/A'}</TableCell>
-                  <TableCell>{product.selling_price.toFixed(2)}</TableCell>
-                  <TableCell>{product.purchase_price?.toFixed(2) || 'N/A'}</TableCell>
-                  <TableCell>{product.opening_stock || 0}</TableCell>
-                  <TableCell align="right">
-                    <IconButton onClick={() => handleEditProduct(product)} size="small"> {/* Updated */}
-                      <EditIcon />
-                    </IconButton>
-                    <IconButton onClick={() => openDeleteDialog(product)} size="small"> {/* Updated */}
-                      <DeleteIcon />
-                    </IconButton>
-                  </TableCell>
+
+      {actionError && <Alert severity="error" sx={{ mb: 2 }}>{actionError}</Alert>}
+      {successMessage && <Alert severity="success" sx={{ mb: 2 }}>{successMessage}</Alert>}
+
+      {isLoading ? <Box display="flex" justifyContent="center" my={3}><CircularProgress /></Box> :
+        <Paper sx={{ width: '100%', overflow: 'hidden' }}>
+          <TableContainer>
+            <Table stickyHeader>
+              <TableHead>
+                <TableRow>
+                  <TableCell>Code</TableCell><TableCell>Name</TableCell><TableCell>Category</TableCell>
+                  {isAdmin && <TableCell>Branch</TableCell>}
+                  <TableCell>Selling Price</TableCell><TableCell>Purchase Price</TableCell>
+                  <TableCell>Stock</TableCell><TableCell align="right">Actions</TableCell>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
-        <TablePagination
-          rowsPerPageOptions={[5, 10, 25]}
-          component="div"
-          count={totalProducts} // This is total number of items
-          rowsPerPage={rowsPerPage}
-          page={page}
-          onPageChange={handleChangePage}
-          onRowsPerPageChange={handleChangeRowsPerPage}
-        />
-      </Paper>
+              </TableHead>
+              <TableBody>
+                {products.map((product) => ( // products is now the paginated slice
+                  <TableRow hover key={product.id}>
+                    <TableCell>{product.code}</TableCell><TableCell>{product.name}</TableCell>
+                    <TableCell>{product.category || 'N/A'}</TableCell>
+                    {isAdmin && <TableCell>{product.branch?.name || 'N/A'}</TableCell>}
+                    <TableCell>{product.selling_price.toFixed(2)}</TableCell>
+                    <TableCell>{product.purchase_price?.toFixed(2) || 'N/A'}</TableCell>
+                    <TableCell>{product.opening_stock || 0}</TableCell>
+                    <TableCell align="right">
+                      <IconButton onClick={() => handleEditProduct(product)} size="small"><EditIcon /></IconButton>
+                      <IconButton onClick={() => openDeleteDialog(product)} size="small"><DeleteIcon /></IconButton>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+          <TablePagination
+            rowsPerPageOptions={[5, 10, 25, 50]} component="div" count={allFetchedProducts.length}
+            rowsPerPage={rowsPerPage} page={page} onPageChange={handleChangePage} onRowsPerPageChange={handleChangeRowsPerPage}
+          />
+        </Paper>
+      }
 
       <ProductFormModal
         open={isModalOpen}
@@ -242,17 +308,16 @@ const ProductsPage = () => {
         onSubmit={handleModalSubmit}
         product={editingProduct}
         isLoading={isModalLoading}
-        error={actionError} // Pass actionError to modal
+        error={actionError}
+        enforcedBranchId={
+          isBranchManager ? user?.branch?.id : (isAdmin && typeof selectedBranchId === 'number' ? selectedBranchId : undefined)
+        }
       />
 
       {productToDelete && (
         <DeleteConfirmationDialog
-          open={isDeleteDialogOpen}
-          onClose={() => setIsDeleteDialogOpen(false)}
-          onConfirm={confirmDeleteProduct}
-          title="Delete Product"
-          description={`Are you sure you want to delete the product "${productToDelete.name}"? This action cannot be undone.`}
-          isLoading={isDeleting}
+          open={isDeleteDialogOpen} onClose={() => setIsDeleteDialogOpen(false)} onConfirm={confirmDeleteProduct}
+          title="Delete Product" description={`Delete product "${productToDelete.name}"? This cannot be undone.`} isLoading={isDeleting}
         />
       )}
     </Container>

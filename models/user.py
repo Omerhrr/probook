@@ -1,14 +1,35 @@
-from sqlalchemy import Column, Integer, String, Boolean
-from sqlalchemy.ext.declarative import declarative_base
-
-Base = declarative_base()
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey
+from sqlalchemy.orm import relationship, Mapped, mapped_column
+from typing import Optional
+from database import Base # Assuming Base is now centralized in database.py
+# Import Role and Branch for relationship typing. Ensure these files exist.
+from .role import Role
+from .branch import Branch
 
 class User(Base):
     __tablename__ = "users"
 
-    id = Column(Integer, primary_key=True, index=True)
-    username = Column(String, unique=True, index=True)
-    hashed_password = Column(String)
-    email = Column(String, unique=True, index=True)
-    full_name = Column(String)
-    disabled = Column(Boolean, default=False)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    username: Mapped[str] = mapped_column(String, unique=True, index=True, nullable=False)
+    hashed_password: Mapped[str] = mapped_column(String, nullable=False)
+    email: Mapped[str] = mapped_column(String, unique=True, index=True, nullable=False)
+    full_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    disabled: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    # Foreign Keys and Relationships for Role and Branch
+    role_id: Mapped[int] = mapped_column(ForeignKey("roles.id"))
+    branch_id: Mapped[Optional[int]] = mapped_column(ForeignKey("branches.id"), nullable=True)
+
+    role: Mapped["Role"] = relationship(back_populates="users", lazy="joined")
+    branch: Mapped[Optional["Branch"]] = relationship(back_populates="users", lazy="joined")
+
+    # Relationships to other models (as owner or user who created)
+    # These would be defined in the other models with a back_populates to 'owner' or 'user'
+    # E.g., in Product model: owner: Mapped["User"] = relationship(back_populates="products_owned")
+    # For now, focusing on role and branch relationships here.
+    # products_owned: Mapped[List["Product"]] = relationship(back_populates="owner") # Example
+    # sales_made: Mapped[List["Sale"]] = relationship(foreign_keys="[Sale.user_id]", back_populates="user") # Example
+    # sales_owned: Mapped[List["Sale"]] = relationship(foreign_keys="[Sale.owner_id]", back_populates="owner") # Example
+
+    def __repr__(self):
+        return f"<User(id={self.id}, username='{self.username}', role='{self.role.name if self.role else None}')>"

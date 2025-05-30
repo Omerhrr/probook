@@ -1,22 +1,19 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import authService from '@/services/authService'; // Assuming @ is src
+import authService from '@/services/authService';
+import { User } from '@/types/user'; // Import the new User type
+import axios from 'axios'; // For /users/me call
 
-// Define the shape of the user object (adjust as per your backend's User model)
-interface User {
-  username: string;
-  // email?: string;
-  // fullName?: string;
-  // roles?: string[]; // Example for future use
-  // disabled?: boolean;
-}
+// Helper to get API base URL
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
+
 
 interface AuthContextType {
   isAuthenticated: boolean;
   user: User | null;
   token: string | null;
-  login: (username: string, password: string) => Promise<void>;
+  login: (username: string, password: string) => Promise<User>; // Return User on successful login
   logout: () => void;
   loading: boolean; // For initial auth check or during login
   authError: string | null; // Store auth related errors
@@ -43,43 +40,53 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [authError, setAuthError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Check for token in localStorage on initial load
-    const storedToken = localStorage.getItem('authToken');
-    const storedUserString = localStorage.getItem('authUser');
-    if (storedToken) {
-      setToken(storedToken);
-      if (storedUserString) {
+    const initializeAuth = async () => {
+      const storedToken = localStorage.getItem('authToken');
+      if (storedToken) {
+        setToken(storedToken);
         try {
-          setUser(JSON.parse(storedUserString));
-        } catch (e) {
-          console.error("Failed to parse stored user", e);
-          localStorage.removeItem('authUser'); // Clear corrupted user data
+          // Validate token by fetching user profile
+          const response = await axios.get<User>(`${API_BASE_URL}/users/me/`, {
+            headers: { Authorization: `Bearer ${storedToken}` },
+          });
+          setUser(response.data);
+          localStorage.setItem('authUser', JSON.stringify(response.data)); // Update stored user
+        } catch (error) {
+          console.error("Failed to fetch user with stored token or token invalid:", error);
+          localStorage.removeItem('authToken');
+          localStorage.removeItem('authUser');
+          setToken(null);
+          setUser(null);
         }
       }
-      // TODO: Optionally validate token with backend here (e.g., fetch /users/me)
-      // For now, we assume if token is present, it's valid.
-      // If you fetch /users/me, update user state with that data.
-    }
-    setLoading(false);
+      setLoading(false);
+    };
+    initializeAuth();
   }, []);
 
-  const login = async (username: string, password: string) => {
+  const login = async (username: string, password: string): Promise<User> => {
     setLoading(true);
     setAuthError(null);
     try {
-      const data = await authService.login(username, password);
-      setToken(data.access_token);
-      localStorage.setItem('authToken', data.access_token);
+      const tokenData = await authService.login(username, password);
+      setToken(tokenData.access_token);
+      localStorage.setItem('authToken', tokenData.access_token);
 
-      // For now, just set username. Ideally, fetch /users/me to get full user details
-      const currentUser: User = { username };
-      setUser(currentUser);
-      localStorage.setItem('authUser', JSON.stringify(currentUser));
-
+      // After successful login, fetch user details
+      const userResponse = await axios.get<User>(`${API_BASE_URL}/users/me/`, {
+        headers: { Authorization: `Bearer ${tokenData.access_token}` },
+      });
+      setUser(userResponse.data);
+      localStorage.setItem('authUser', JSON.stringify(userResponse.data));
+      return userResponse.data; // Return user data
     } catch (error: any) {
-      const errorMessage = error.message || 'Login failed. Please try again.';
+      const errorMessage = error.response?.data?.detail || error.message || 'Login failed.';
       setAuthError(errorMessage);
-      throw new Error(errorMessage); // Re-throw to be caught by form
+      localStorage.removeItem('authToken'); // Clear token on failed login/fetch
+      localStorage.removeItem('authUser');
+      setToken(null);
+      setUser(null);
+      throw new Error(errorMessage);
     } finally {
       setLoading(false);
     }

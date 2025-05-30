@@ -23,13 +23,21 @@ const handleError = (error: AxiosError | Error, defaultMessage: string) => {
 export const getSales = async (
   token: string,
   skip: number = 0,
-  limit: number = 100
+  limit: number = 100,
+  branchId?: number | 'all', // Added branchId
+  customerId?: number | null // Existing customerId filter
 ): Promise<Sale[]> => {
   try {
-    const response = await axios.get<Sale[]>(
-      `${API_BASE_URL}/sales/?skip=${skip}&limit=${limit}`,
-      getAuthHeaders(token)
-    );
+    let url = `${API_BASE_URL}/sales/?skip=${skip}&limit=${limit}`;
+    if (typeof branchId === 'number') {
+      url += `&branch_id=${branchId}`;
+    }
+    if (customerId) {
+      url += `&customer_id=${customerId}`;
+    }
+    // If branchId is 'all' or undefined for admin, backend returns all (or all for that customer).
+    // If user is branch manager, backend scopes to their branch.
+    const response = await axios.get<Sale[]>(url, getAuthHeaders(token));
     return response.data;
   } catch (error) {
     throw new Error(handleError(error as AxiosError, 'Failed to fetch sales.'));
