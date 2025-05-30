@@ -1,4 +1,4 @@
-main/vendor
-main/vendors
-main/scss
-
+venv/
+.env
+__pycache__/
+*.pyc
