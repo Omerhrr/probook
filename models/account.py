@@ -5,7 +5,8 @@ from database import Base
 from .account_type import AccountType
 from .branch import Branch
 from .journal_entry import JournalEntryItem
-from .accounting_setting import AccountingSetting # Ensure AccountingSetting is imported at the top
+from .accounting_setting import AccountingSetting
+from .customer_payment import CustomerPayment # Ensure CustomerPayment is imported at the top
 
 class Account(Base):
     __tablename__ = "accounts"
@@ -43,7 +44,8 @@ class Account(Base):
     # )
 
     journal_entry_items: Mapped[List["JournalEntryItem"]] = relationship(back_populates="account")
-    accounting_settings: Mapped[List["AccountingSetting"]] = relationship(back_populates="account") # Added
+    accounting_settings: Mapped[List["AccountingSetting"]] = relationship(back_populates="account")
+    customer_payments_via_account: Mapped[List["CustomerPayment"]] = relationship(back_populates="payment_account", foreign_keys="[CustomerPayment.payment_method_account_id]") # Added
 
     def __repr__(self):
         return f"<Account(id={self.id}, name='{self.name}', code='{self.account_code}', branch_id={self.branch_id})>"

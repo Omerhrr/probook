@@ -8,9 +8,21 @@ from database import Base
 # if TYPE_CHECKING:
 #     from .user import User
 #     from .product import Product
-#     from .account import Account # Added for type hinting within this file if needed
+#     from .account import Account
+#     from .journal_entry import JournalEntry
+#     from .accounting_setting import AccountingSetting
+#     from .customer_payment import CustomerPayment # For type hinting
 
-from .account import Account # Ensure Account is imported for Mapped[List["Account"]]
+# Consolidate imports at the top
+from .account import Account
+from .journal_entry import JournalEntry
+from .accounting_setting import AccountingSetting
+from .customer_payment import CustomerPayment
+# Need to import other models this Branch refers to in relationships if not already via other means
+# e.g. User, Product, Supplier, Customer, Sale, Expense for Mapped[List["X"]] types.
+# Assuming these are handled by string evaluation or forward references implicitly.
+# For explicit type checking and clarity, they could be added to TYPE_CHECKING block.
+# For now, focusing on ensuring the necessary ones for back_populates are directly imported.
 
 class Branch(Base):
     __tablename__ = "branches"
@@ -28,18 +40,13 @@ class Branch(Base):
     expenses: Mapped[List["Expense"]] = relationship(back_populates="branch")
     accounts: Mapped[List["Account"]] = relationship(back_populates="branch")
     journal_entries: Mapped[List["JournalEntry"]] = relationship(back_populates="branch")
-    accounting_settings: Mapped[List["AccountingSetting"]] = relationship(back_populates="branch") # Added
+    accounting_settings: Mapped[List["AccountingSetting"]] = relationship(back_populates="branch")
+    customer_payments: Mapped[List["CustomerPayment"]] = relationship(back_populates="branch") # Added
 
     def __repr__(self):
         return f"<Branch(id={self.id}, name='{self.name}')>"
 
-from .accounting_setting import AccountingSetting # Import for relationship
-
-# Import JournalEntry if not already present (it won't be)
-from .journal_entry import JournalEntry
-
-# Add Account to imports if not already (assuming it's in .account)
-# from .account import Account
+# Removed imports from here as they are moved to the top
 
 # To make Mapped["ModelName"] work correctly when models are in different files
 # and to avoid circular imports, we need to handle type hinting carefully.

@@ -30,10 +30,12 @@ class User(Base):
     # products_owned: Mapped[List["Product"]] = relationship(back_populates="owner") # Example
     # sales_made: Mapped[List["Sale"]] = relationship(foreign_keys="[Sale.user_id]", back_populates="user")
     # sales_owned: Mapped[List["Sale"]] = relationship(foreign_keys="[Sale.owner_id]", back_populates="owner")
-    journal_entries_created: Mapped[List["JournalEntry"]] = relationship(back_populates="created_by", foreign_keys="[JournalEntry.created_by_user_id]") # Added
+    journal_entries_created: Mapped[List["JournalEntry"]] = relationship(back_populates="created_by", foreign_keys="[JournalEntry.created_by_user_id]")
+    customer_payments_created: Mapped[List["CustomerPayment"]] = relationship(back_populates="created_by", foreign_keys="[CustomerPayment.created_by_user_id]")# Added
 
     def __repr__(self):
         return f"<User(id={self.id}, username='{self.username}', role='{self.role.name if self.role else None}')>"
 
 # Import JournalEntry if not already present
 from .journal_entry import JournalEntry
+from .customer_payment import CustomerPayment # Import for relationship

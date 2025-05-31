@@ -5,7 +5,8 @@ from typing import Optional, List
 from database import Base
 from models.user import User
 from models.branch import Branch # Import Branch
-from models.sale import Sale # Assuming Sale model exists
+from models.sale import Sale
+from .customer_payment import CustomerPayment # Ensure CustomerPayment is imported
 
 class Customer(Base):
     __tablename__ = "customers"
@@ -21,6 +22,7 @@ class Customer(Base):
     branch_id: Mapped[int] = mapped_column(ForeignKey("branches.id"), nullable=False) # Customers must belong to a branch
 
     # Relationships
-    owner: Mapped["User"] = relationship() # User model needs to define `customers_owned` or similar
+    owner: Mapped["User"] = relationship()
     branch: Mapped["Branch"] = relationship(back_populates="customers", lazy="joined")
     sales: Mapped[List["Sale"]] = relationship(back_populates="customer")
+    payments_received: Mapped[List["CustomerPayment"]] = relationship(back_populates="customer") # Added

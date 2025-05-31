@@ -68,6 +68,9 @@ const DefaultLayout: React.FC<DefaultLayoutProps> = ({ children }) => {
                   <Button color="inherit" component={Link} href="/(pages)/admin/accounts">
                     COA
                   </Button>
+                  <Button color="inherit" component={Link} href="/(pages)/admin/accounting-settings">
+                    Acc. Settings
+                  </Button>
                 </>
               )}
               {/* Accounting Section for Admin/Branch Manager (or future Accountant role) */}
@@ -77,7 +80,15 @@ const DefaultLayout: React.FC<DefaultLayoutProps> = ({ children }) => {
                   <Button color="inherit" component={Link} href="/(pages)/accounting/journal-entries">
                     Journal Entries
                   </Button>
-                  {/* Link to create new JE might be better placed on the JE list page */}
+                  <Button color="inherit" component={Link} href="/(pages)/accounting/customer-payments">
+                    Cust. Payments
+                  </Button>
+                  <Button color="inherit" component={Link} href="/(pages)/accounting/sales-ledger">
+                    Sales Ledger
+                  </Button>
+                  <Button color="inherit" component={Link} href="/(pages)/accounting/ar-ledger">
+                    A/R Ledger
+                  </Button>
                  </>
               )}
 
