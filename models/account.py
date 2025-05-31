@@ -4,7 +4,8 @@ from typing import Optional, List
 from database import Base
 from .account_type import AccountType
 from .branch import Branch
-from .journal_entry import JournalEntryItem # Ensure JournalEntryItem is imported
+from .journal_entry import JournalEntryItem
+from .accounting_setting import AccountingSetting # Ensure AccountingSetting is imported at the top
 
 class Account(Base):
     __tablename__ = "accounts"
@@ -41,7 +42,8 @@ class Account(Base):
     #     UniqueConstraint('account_code', 'branch_id', name='uq_account_code_branch'),
     # )
 
-    journal_entry_items: Mapped[List["JournalEntryItem"]] = relationship(back_populates="account") # Added
+    journal_entry_items: Mapped[List["JournalEntryItem"]] = relationship(back_populates="account")
+    accounting_settings: Mapped[List["AccountingSetting"]] = relationship(back_populates="account") # Added
 
     def __repr__(self):
         return f"<Account(id={self.id}, name='{self.name}', code='{self.account_code}', branch_id={self.branch_id})>"

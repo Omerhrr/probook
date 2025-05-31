@@ -27,10 +27,13 @@ class Branch(Base):
     sales: Mapped[List["Sale"]] = relationship(back_populates="branch")
     expenses: Mapped[List["Expense"]] = relationship(back_populates="branch")
     accounts: Mapped[List["Account"]] = relationship(back_populates="branch")
-    journal_entries: Mapped[List["JournalEntry"]] = relationship(back_populates="branch") # Added
+    journal_entries: Mapped[List["JournalEntry"]] = relationship(back_populates="branch")
+    accounting_settings: Mapped[List["AccountingSetting"]] = relationship(back_populates="branch") # Added
 
     def __repr__(self):
         return f"<Branch(id={self.id}, name='{self.name}')>"
+
+from .accounting_setting import AccountingSetting # Import for relationship
 
 # Import JournalEntry if not already present (it won't be)
 from .journal_entry import JournalEntry

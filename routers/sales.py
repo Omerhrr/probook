@@ -1,21 +1,19 @@
-from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
-from typing import List, Optional # Added Optional
-from fastapi import APIRouter, Depends, HTTPException, status, Query # Added Query
-# Remove sqlalchemy.future.select if not used explicitly with new syntax for options
-# from sqlalchemy.future import select
-from sqlalchemy.orm import Session, selectinload # For eager loading
+from typing import List, Optional
+from fastapi import APIRouter, Depends, HTTPException, status, Query
+from sqlalchemy.orm import Session, selectinload
 
 from database import get_db
 from models.user import User as UserModel
 from models.product import Product as ProductModel
 from models.customer import Customer as CustomerModel
 from models.sale import Sale as SaleModel, SaleItem as SaleItemModel
-from models.branch import Branch as BranchModel # For branch validation
-from schemas.sale import Sale, SaleCreate # SaleItem is implicitly used by Sale schema
-# Updated dependencies
+from models.branch import Branch as BranchModel
+from models.account import Account as AccountModel # For COGS item account validation
+import models.journal_entry as je_model # For creating JournalEntry
+import schemas.journal_entry as je_schema # For JournalEntryCreate schema
+from schemas.sale import Sale, SaleCreate
 from dependencies import get_current_active_user, get_admin_or_branch_manager_user
+from decimal import Decimal # For precise calculations
 
 router = APIRouter(
     prefix="/sales",
@@ -111,23 +109,120 @@ def create_sale(
         sale_items_to_add.append(db_sale_item)
 
     db_sale.total_amount = calculated_total_sale_amount
-    db.add_all(sale_items_to_add) # Add all items
+    db.add_all(sale_items_to_add)
+    db_sale.total_amount = calculated_total_sale_amount # Ensure total amount is set on the sale model instance
 
+    # At this point, Sale and SaleItems are staged. Now, create Journal Entries.
+    # This entire block (Sale + JEs) should be in one transaction.
     try:
-        db.commit() # Commit the transaction including sale and all its items
+        # Fetch accounting settings for the branch
+        from utils.accounting_helpers import get_branch_accounting_settings, ESSENTIAL_ACCOUNT_KEYS
+        acc_settings = get_branch_accounting_settings(db, final_branch_id)
+
+        # 1. Journal Entry for Sale Revenue & Accounts Receivable
+        je_sale_items = [
+            je_schema.JournalEntryItemCreate( # Debit A/R
+                account_id=acc_settings["default_accounts_receivable_account_id"],
+                debit_amount=float(db_sale.total_amount),
+                credit_amount=0
+            ),
+            je_schema.JournalEntryItemCreate( # Credit Sales Revenue
+                account_id=acc_settings["default_sales_revenue_account_id"],
+                debit_amount=0,
+                credit_amount=float(db_sale.total_amount)
+            ),
+        ]
+        je_sale_data = je_schema.JournalEntryCreate(
+            entry_date=db_sale.sale_date,
+            description=f"Sale - Invoice for customer_id: {db_sale.customer_id or 'N/A'}", # Refine description
+            branch_id=final_branch_id,
+            items=je_sale_items
+        )
+        # Use the create_journal_entry logic (or a direct model creation)
+        # For simplicity, directly creating models for JE here:
+        db_je_sale = je_model.JournalEntry(
+            entry_date=je_sale_data.entry_date,
+            description=je_sale_data.description,
+            branch_id=je_sale_data.branch_id,
+            created_by_user_id=current_user.id
+        )
+        db.add(db_je_sale)
+        db.flush() # Get ID for items
+        for item_create_data in je_sale_data.items:
+            db.add(je_model.JournalEntryItem(
+                journal_entry_id=db_je_sale.id, **item_create_data.model_dump()
+            ))
+
+        # 2. Journal Entry for COGS & Inventory
+        # Calculate total COGS for the sale. Product cost needs to be stored/fetched.
+        # Assuming ProductModel has a 'cost_price' or similar field.
+        # For this example, let's assume 'purchase_price' on ProductModel is the cost.
+        # This was not explicitly added to sales_order items in previous PHP analysis, but 'cost' was.
+        # We need to ensure product.purchase_price is the cost of one unit.
+
+        total_cogs = Decimal('0.00')
+        for item_data in sale_data.items: # Iterate original sale_data for product_id and qty
+            product = db.query(ProductModel).filter(ProductModel.id == item_data.product_id).first()
+            # Assuming product.purchase_price is the cost of one unit.
+            # This should be the cost at the time of sale, not current cost if it changes.
+            # Ideally, this cost should be captured when sales_order_items are created if not already.
+            # For now, using current product.purchase_price as cost_price.
+            if product and product.purchase_price is not None: # product.purchase_price is cost
+                 total_cogs += Decimal(str(product.purchase_price)) * Decimal(item_data.quantity)
+            else:
+                # Handle missing cost price - this might be an error or a service item
+                # For now, if product cost is unknown, COGS entry for that item might be skipped or error raised.
+                # Let's assume for now products always have a purchase_price if they affect inventory.
+                pass # Or raise error: HTTPException(status_code=400, detail=f"Cost price not found for product ID {item_data.product_id}")
+
+
+        if total_cogs > 0: # Only create COGS entry if there's a cost involved
+            je_cogs_items = [
+                je_schema.JournalEntryItemCreate( # Debit COGS
+                    account_id=acc_settings["default_cogs_account_id"],
+                    debit_amount=float(total_cogs),
+                    credit_amount=0
+                ),
+                je_schema.JournalEntryItemCreate( # Credit Inventory
+                    account_id=acc_settings["default_inventory_account_id"],
+                    debit_amount=0,
+                    credit_amount=float(total_cogs)
+                ),
+            ]
+            je_cogs_data = je_schema.JournalEntryCreate(
+                entry_date=db_sale.sale_date,
+                description=f"COGS for Sale - Invoice for customer_id: {db_sale.customer_id or 'N/A'}",
+                branch_id=final_branch_id,
+                items=je_cogs_items
+            )
+            db_je_cogs = je_model.JournalEntry(
+                entry_date=je_cogs_data.entry_date,
+                description=je_cogs_data.description,
+                branch_id=je_cogs_data.branch_id,
+                created_by_user_id=current_user.id
+            )
+            db.add(db_je_cogs)
+            db.flush()
+            for item_create_data in je_cogs_data.items:
+                db.add(je_model.JournalEntryItem(
+                    journal_entry_id=db_je_cogs.id, **item_create_data.model_dump()
+                ))
+
+        db.commit()
         db.refresh(db_sale)
-        # Eager load items and customer for the response
-        # This can be done by querying again with options or by ensuring relationships are properly loaded
-        # For simplicity, Pydantic's orm_mode will try to access them.
-        # To be robust, ensure they are loaded, especially items.
-        # db.refresh(db_sale, attribute_names=['items', 'customer']) # This might be needed
-        # Or query it again:
-        # sale_with_details = db.query(SaleModel).options(selectinload(SaleModel.items).selectinload(SaleItemModel.product), selectinload(SaleModel.customer)).filter(SaleModel.id == db_sale.id).first()
-        # return sale_with_details
-        return db_sale # Assuming orm_mode and session state handle population for response
+        # Eager load for response
+        return db.query(SaleModel).options(
+            selectinload(SaleModel.items).selectinload(SaleItemModel.product),
+            selectinload(SaleModel.customer),
+            selectinload(SaleModel.branch)
+        ).filter(SaleModel.id == db_sale.id).first()
+
+    except HTTPException as he: # Catch specific HTTP exceptions from helpers like get_branch_accounting_settings
+        db.rollback()
+        raise he
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=f"Error committing sale: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error committing sale and creating journal entries: {str(e)}")
 
 
 @router.get("/{sale_id}", response_model=Sale)

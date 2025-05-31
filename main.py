@@ -16,8 +16,9 @@ from models.sale import Sale as SaleModel, SaleItem as SaleItemModel
 from models.expense import Expense as ExpenseModel
 # AccountTypeModel is already imported below for seeding
 from models.account import Account as AccountModel
-from models.journal_entry import JournalEntry as JournalEntryModel # Import JournalEntry
-from models.journal_entry import JournalEntryItem as JournalEntryItemModel # Import JournalEntryItem
+from models.journal_entry import JournalEntry as JournalEntryModel
+from models.journal_entry import JournalEntryItem as JournalEntryItemModel
+from models.accounting_setting import AccountingSetting as AccountingSettingModel # Import AccountingSetting
 
 from schemas.user import User as UserSchema
 from routers import auth, products, suppliers, customers, sales, expenses, reports
@@ -26,7 +27,8 @@ from routers import branches as branches_router
 from routers import users as users_router
 from routers import account_types as account_types_router
 from routers import accounts as accounts_router
-from routers import journal_entries as journal_entries_router # Import journal_entries router
+from routers import journal_entries as journal_entries_router
+from routers import accounting_settings as accounting_settings_router # Import accounting_settings router
 from dependencies import get_current_active_user
 
 from sqlalchemy.orm import Session
@@ -92,7 +94,8 @@ app.include_router(branches_router.router)
 app.include_router(users_router.router)
 app.include_router(account_types_router.router)
 app.include_router(accounts_router.router)
-app.include_router(journal_entries_router.router) # Register journal_entries router
+app.include_router(journal_entries_router.router)
+app.include_router(accounting_settings_router.router) # Register accounting_settings router
 
 
 @app.get("/users/me/", response_model=UserSchema)
