@@ -57,12 +57,28 @@ const DefaultLayout: React.FC<DefaultLayoutProps> = ({ children }) => {
                 <>
                   <Box sx={{mx: 1, borderLeft: '1px solid rgba(255,255,255,0.2)' }} />
                   <Button color="inherit" component={Link} href="/(pages)/admin/users">
-                    Users (Admin)
+                    Users
                   </Button>
                   <Button color="inherit" component={Link} href="/(pages)/admin/branches">
-                    Branches (Admin)
+                    Branches
+                  </Button>
+                  <Button color="inherit" component={Link} href="/(pages)/admin/account-types">
+                    Acc. Types
+                  </Button>
+                  <Button color="inherit" component={Link} href="/(pages)/admin/accounts">
+                    COA
                   </Button>
                 </>
+              )}
+              {/* Accounting Section for Admin/Branch Manager (or future Accountant role) */}
+              {(user?.role?.name.toLowerCase() === 'admin' || user?.role?.name.toLowerCase() === 'branch_manager') && (
+                 <>
+                  <Box sx={{mx: 1, borderLeft: '1px solid rgba(255,255,255,0.2)' }} />
+                  <Button color="inherit" component={Link} href="/(pages)/accounting/journal-entries">
+                    Journal Entries
+                  </Button>
+                  {/* Link to create new JE might be better placed on the JE list page */}
+                 </>
               )}
 
               <Typography sx={{ ml: 2, mr: 1 }}>Hi, {user?.username}</Typography>

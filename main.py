@@ -10,21 +10,27 @@ from models.user import User as UserModel
 from models.role import Role as RoleModel # Import Role model
 from models.branch import Branch as BranchModel # Import Branch model
 from models.product import Product as ProductModel
-from models.supplier import Supplier as SupplierModel # Import Supplier model
+from models.supplier import Supplier as SupplierModel
 from models.customer import Customer as CustomerModel
 from models.sale import Sale as SaleModel, SaleItem as SaleItemModel
 from models.expense import Expense as ExpenseModel
+# AccountTypeModel is already imported below for seeding
+from models.account import Account as AccountModel
+from models.journal_entry import JournalEntry as JournalEntryModel # Import JournalEntry
+from models.journal_entry import JournalEntryItem as JournalEntryItemModel # Import JournalEntryItem
 
 from schemas.user import User as UserSchema
-# Corrected router imports
 from routers import auth, products, suppliers, customers, sales, expenses, reports
 from routers import roles as roles_router
 from routers import branches as branches_router
 from routers import users as users_router
+from routers import account_types as account_types_router
+from routers import accounts as accounts_router
+from routers import journal_entries as journal_entries_router # Import journal_entries router
 from dependencies import get_current_active_user
 
 from sqlalchemy.orm import Session
-from models.role import Role as RoleModel # Import Role model for seeding
+# RoleModel is already imported below for seeding
 from database import SessionLocal # Import SessionLocal for seeding
 
 # Function to seed initial roles
@@ -41,6 +47,25 @@ def seed_initial_roles(db: Session):
             db.add(new_role)
     db.commit()
 
+# Function to seed initial account types
+from models.account_type import AccountType as AccountTypeModel # Import AccountType model
+
+def seed_initial_account_types(db: Session):
+    initial_account_types = [
+        {"name": "Asset", "description": "Resources owned by the company."},
+        {"name": "Liability", "description": "Obligations of the company to others."},
+        {"name": "Equity", "description": "Owner's stake in the company."},
+        {"name": "Revenue", "description": "Income generated from business operations."},
+        {"name": "Expense", "description": "Costs incurred in business operations."}
+    ]
+    for acc_type_data in initial_account_types:
+        db_acc_type = db.query(AccountTypeModel).filter(AccountTypeModel.name == acc_type_data["name"]).first()
+        if not db_acc_type:
+            new_acc_type = AccountTypeModel(name=acc_type_data["name"], description=acc_type_data["description"])
+            db.add(new_acc_type)
+    db.commit()
+
+
 # Create all tables
 Base.metadata.create_all(bind=engine)
 
@@ -48,11 +73,10 @@ app = FastAPI()
 
 @app.on_event("startup")
 async def on_startup():
-    # This is a simple way to run seeding.
-    # For more complex scenarios or if async session is needed, adjust accordingly.
     db = SessionLocal()
     try:
         seed_initial_roles(db)
+        seed_initial_account_types(db) # Add account type seeding
     finally:
         db.close()
 
@@ -66,6 +90,9 @@ app.include_router(reports.router)
 app.include_router(roles_router.router) # Use the imported router objects
 app.include_router(branches_router.router)
 app.include_router(users_router.router)
+app.include_router(account_types_router.router)
+app.include_router(accounts_router.router)
+app.include_router(journal_entries_router.router) # Register journal_entries router
 
 
 @app.get("/users/me/", response_model=UserSchema)

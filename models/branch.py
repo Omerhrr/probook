@@ -7,7 +7,10 @@ from database import Base
 # from typing import TYPE_CHECKING
 # if TYPE_CHECKING:
 #     from .user import User
-#     from .product import Product # etc. for all models that will have a branch_id
+#     from .product import Product
+#     from .account import Account # Added for type hinting within this file if needed
+
+from .account import Account # Ensure Account is imported for Mapped[List["Account"]]
 
 class Branch(Base):
     __tablename__ = "branches"
@@ -21,11 +24,19 @@ class Branch(Base):
     products: Mapped[List["Product"]] = relationship(back_populates="branch")
     suppliers: Mapped[List["Supplier"]] = relationship(back_populates="branch")
     customers: Mapped[List["Customer"]] = relationship(back_populates="branch")
-    sales: Mapped[List["Sale"]] = relationship(back_populates="branch") # Sales made at/by this branch
+    sales: Mapped[List["Sale"]] = relationship(back_populates="branch")
     expenses: Mapped[List["Expense"]] = relationship(back_populates="branch")
+    accounts: Mapped[List["Account"]] = relationship(back_populates="branch")
+    journal_entries: Mapped[List["JournalEntry"]] = relationship(back_populates="branch") # Added
 
     def __repr__(self):
         return f"<Branch(id={self.id}, name='{self.name}')>"
+
+# Import JournalEntry if not already present (it won't be)
+from .journal_entry import JournalEntry
+
+# Add Account to imports if not already (assuming it's in .account)
+# from .account import Account
 
 # To make Mapped["ModelName"] work correctly when models are in different files
 # and to avoid circular imports, we need to handle type hinting carefully.

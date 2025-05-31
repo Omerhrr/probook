@@ -28,8 +28,12 @@ class User(Base):
     # E.g., in Product model: owner: Mapped["User"] = relationship(back_populates="products_owned")
     # For now, focusing on role and branch relationships here.
     # products_owned: Mapped[List["Product"]] = relationship(back_populates="owner") # Example
-    # sales_made: Mapped[List["Sale"]] = relationship(foreign_keys="[Sale.user_id]", back_populates="user") # Example
-    # sales_owned: Mapped[List["Sale"]] = relationship(foreign_keys="[Sale.owner_id]", back_populates="owner") # Example
+    # sales_made: Mapped[List["Sale"]] = relationship(foreign_keys="[Sale.user_id]", back_populates="user")
+    # sales_owned: Mapped[List["Sale"]] = relationship(foreign_keys="[Sale.owner_id]", back_populates="owner")
+    journal_entries_created: Mapped[List["JournalEntry"]] = relationship(back_populates="created_by", foreign_keys="[JournalEntry.created_by_user_id]") # Added
 
     def __repr__(self):
         return f"<User(id={self.id}, username='{self.username}', role='{self.role.name if self.role else None}')>"
+
+# Import JournalEntry if not already present
+from .journal_entry import JournalEntry
