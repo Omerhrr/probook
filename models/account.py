@@ -36,12 +36,11 @@ class Account(Base):
         join_depth=2 # Example: adjust as needed for performance with deep hierarchies
     )
 
-    # TODO: Add unique constraints for (name, branch_id) and (account_code, branch_id) in __table_args__
-    # from sqlalchemy import UniqueConstraint
-    # __table_args__ = (
-    #     UniqueConstraint('name', 'branch_id', name='uq_account_name_branch'),
-    #     UniqueConstraint('account_code', 'branch_id', name='uq_account_code_branch'),
-    # )
+    from sqlalchemy import UniqueConstraint
+    __table_args__ = (
+        UniqueConstraint('name', 'branch_id', name='uq_account_name_branch'),
+        UniqueConstraint('account_code', 'branch_id', name='uq_account_code_branch'),
+    )
 
     journal_entry_items: Mapped[List["JournalEntryItem"]] = relationship(back_populates="account")
     accounting_settings: Mapped[List["AccountingSetting"]] = relationship(back_populates="account")

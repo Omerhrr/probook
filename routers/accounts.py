@@ -8,6 +8,7 @@ import schemas.account as account_schema
 import dependencies # For admin dependency
 from models.branch import Branch as BranchModel
 from models.account_type import AccountType as AccountTypeModel
+from models.journal_entry import JournalEntryItem # Added for deletion check
 
 router = APIRouter(
     prefix="/accounts",
@@ -178,8 +179,13 @@ def delete_account(
     if db.query(account_model.Account).filter(account_model.Account.parent_account_id == account_id).first():
         raise HTTPException(status_code=400, detail="Cannot delete account: it is a parent to other accounts. Reassign child accounts first.")
 
-    # TODO: Add check if account is used in any ledger entries. This is crucial.
-    # For now, direct deletion.
+    # Check if account is used in any journal entry items
+    is_account_used_in_journal = db.query(JournalEntryItem).filter(JournalEntryItem.account_id == account_id).first()
+    if is_account_used_in_journal:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Account cannot be deleted because it is used in ledger entries."
+        )
 
     db.delete(db_account)
     db.commit()
