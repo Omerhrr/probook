@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, Boolean, ForeignKey
 from sqlalchemy.orm import relationship, Mapped, mapped_column
-from typing import Optional
+from typing import Optional, List, TYPE_CHECKING
 from database import Base # Assuming Base is now centralized in database.py
 # Import Role and Branch for relationship typing. Ensure these files exist.
 from .role import Role
@@ -31,7 +31,15 @@ class User(Base):
     # sales_made: Mapped[List["Sale"]] = relationship(foreign_keys="[Sale.user_id]", back_populates="user")
     # sales_owned: Mapped[List["Sale"]] = relationship(foreign_keys="[Sale.owner_id]", back_populates="owner")
     journal_entries_created: Mapped[List["JournalEntry"]] = relationship(back_populates="created_by", foreign_keys="[JournalEntry.created_by_user_id]")
-    customer_payments_created: Mapped[List["CustomerPayment"]] = relationship(back_populates="created_by", foreign_keys="[CustomerPayment.created_by_user_id]")# Added
+    customer_payments_created: Mapped[List["CustomerPayment"]] = relationship(back_populates="created_by", foreign_keys="[CustomerPayment.created_by_user_id]") # Added
+
+    # Relationship to PasswordResetToken
+    if TYPE_CHECKING:
+        from .password_reset_token import PasswordResetToken # Import for type hint
+        password_reset_tokens: Mapped[List[PasswordResetToken]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    else:
+        # For runtime, use string literal to avoid potential issues
+        password_reset_tokens = relationship("PasswordResetToken", back_populates="user", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<User(id={self.id}, username='{self.username}', role='{self.role.name if self.role else None}')>"
