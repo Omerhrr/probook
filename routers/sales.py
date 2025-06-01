@@ -60,7 +60,8 @@ def create_sale(
     db_sale = SaleModel(
         customer_id=sale_data.customer_id,
         user_id=current_user.id, # User making the sale
-        owner_id=current_user.id, # TODO: Revisit owner_id logic. Should it be branch owner or system owner? For now, creator.
+        owner_id=current_user.id, # owner_id is currently set to current_user.id (the creator), same as user_id.
+                                  # This maintains simplicity. Future enhancements might allow assigning a specific salesperson as owner.
         branch_id=final_branch_id,
         total_amount=0 # Will be calculated
     )
