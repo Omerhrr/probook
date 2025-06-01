@@ -1,20 +1,20 @@
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy.orm import Session
-from datetime import date
-
-from database import get_db
-from models.user import User as UserModel
-from sqlalchemy.orm import Session, selectinload # Added selectinload
+from sqlalchemy.orm import Session, selectinload
 from datetime import date
 
 from database import get_db
 from models.user import User as UserModel
 from models.supplier import Supplier as SupplierModel
 from models.expense import Expense as ExpenseModel
-from models.branch import Branch as BranchModel # For branch validation
+from models.branch import Branch as BranchModel
+# For Journal Entry creation related to expenses
+import models.journal_entry as je_model
+import schemas.journal_entry as je_schema
+from utils.accounting_helpers import get_branch_accounting_settings
+from decimal import Decimal # For financial calculations if needed, though amounts are float here
+
 from schemas.expense import Expense, ExpenseCreate, ExpenseUpdate
-# Updated dependencies
 from dependencies import get_current_active_user, get_current_admin_user, get_current_branch_manager_user, get_admin_or_branch_manager_user
 
 
@@ -66,20 +66,84 @@ def create_expense(
     db_expense = ExpenseModel(**expense_dict, owner_id=current_user.id)
 
     db.add(db_expense)
-    db.commit()
-    db.refresh(db_expense)
-    # Eager load supplier and branch for the response
-    # db.refresh(db_expense, attribute_names=['supplier', 'branch']) # Or query again with options
-    return db_expense
+    # db.commit() # Commit will be done after JE creation or rollback if JE fails
+    # db.refresh(db_expense)
 
-    # Query again to ensure relationships are loaded for the response as per schema
-    # This is crucial if `lazy="joined"` is not consistently loading or if session state is tricky.
-    # For explicit loading after commit:
-    response_expense = db.query(ExpenseModel).options(
-        selectinload(ExpenseModel.supplier),
-        selectinload(ExpenseModel.branch)
-    ).filter(ExpenseModel.id == db_expense.id).first()
-    return response_expense
+    # Automated Journal Entry Creation
+    try:
+        from utils.accounting_helpers import get_branch_accounting_settings
+        from models.account import Account as AccountModel # For account type validation
+        import models.journal_entry as je_model
+        import schemas.journal_entry as je_schema
+        from decimal import Decimal
+
+        acc_settings = get_branch_accounting_settings(db, final_branch_id)
+
+        debit_account_id = acc_settings["default_operating_expense_account_id"]
+
+        # Validate Debit Account (Operating Expense)
+        debit_account = db.query(AccountModel).options(selectinload(AccountModel.account_type)).filter(AccountModel.id == debit_account_id).first()
+        if not debit_account or not debit_account.is_active:
+            raise HTTPException(status_code=400, detail=f"Default Operating Expense account (ID: {debit_account_id}) is invalid or inactive.")
+        if debit_account.account_type.name.lower() != "expense":
+            raise HTTPException(status_code=400, detail=f"Default Operating Expense account (ID: {debit_account_id}) is not an 'Expense' type account.")
+
+        credit_account_id: int
+        je_description: str
+
+        if db_expense.supplier_id: # Expense linked to a supplier -> Credit Accounts Payable
+            credit_account_id = acc_settings["default_accounts_payable_account_id"]
+            credit_account_type_name = "Liability"
+            supplier = db.query(SupplierModel).filter(SupplierModel.id == db_expense.supplier_id).first() # Fetch for description
+            je_description = f"Expense recorded for supplier: {supplier.name if supplier else 'N/A'} - Category: {db_expense.category}"
+        else: # Direct expense -> Credit Cash/Bank
+            credit_account_id = acc_settings["default_cash_on_hand_account_id"] # Assuming cash payment for non-supplier expenses
+            credit_account_type_name = "Asset" # Cash/Bank is an asset
+            je_description = f"Direct Expense - Category: {db_expense.category}"
+
+        # Validate Credit Account
+        credit_account = db.query(AccountModel).options(selectinload(AccountModel.account_type)).filter(AccountModel.id == credit_account_id).first()
+        if not credit_account or not credit_account.is_active:
+            raise HTTPException(status_code=400, detail=f"Default {credit_account_type_name} account (ID: {credit_account_id}) for expense payment is invalid or inactive.")
+        if credit_account.account_type.name.lower() != credit_account_type_name.lower():
+            raise HTTPException(status_code=400, detail=f"Configured account for {credit_account_type_name} (ID: {credit_account_id}) is not a '{credit_account_type_name}' type account.")
+
+        je_items_create_data = [
+            je_schema.JournalEntryItemCreate(account_id=debit_account_id, debit_amount=float(db_expense.amount), credit_amount=0),
+            je_schema.JournalEntryItemCreate(account_id=credit_account_id, debit_amount=0, credit_amount=float(db_expense.amount))
+        ]
+        je_create_data = je_schema.JournalEntryCreate(
+            entry_date=db_expense.expense_date,
+            description=f"{je_description} - {db_expense.description or ''}".strip(),
+            branch_id=final_branch_id,
+            items=je_items_create_data
+        )
+
+        db_je = je_model.JournalEntry(
+            entry_date=je_create_data.entry_date,
+            description=je_create_data.description,
+            branch_id=je_create_data.branch_id,
+            created_by_user_id=current_user.id
+        )
+        db.add(db_je)
+        db.flush() # Get JE ID
+        for item_data in je_create_data.items:
+            db.add(je_model.JournalEntryItem(journal_entry_id=db_je.id, **item_data.model_dump()))
+
+        db.commit() # Commit expense and JE together
+        db.refresh(db_expense)
+        # Eager load for response
+        return db.query(ExpenseModel).options(
+            selectinload(ExpenseModel.supplier),
+            selectinload(ExpenseModel.branch)
+        ).filter(ExpenseModel.id == db_expense.id).first()
+
+    except HTTPException as he:
+        db.rollback()
+        raise he
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to save expense and create journal entry: {str(e)}")
 
 
 @router.get("/{expense_id}", response_model=Expense)

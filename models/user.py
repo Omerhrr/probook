@@ -31,7 +31,9 @@ class User(Base):
     # sales_made: Mapped[List["Sale"]] = relationship(foreign_keys="[Sale.user_id]", back_populates="user")
     # sales_owned: Mapped[List["Sale"]] = relationship(foreign_keys="[Sale.owner_id]", back_populates="owner")
     journal_entries_created: Mapped[List["JournalEntry"]] = relationship(back_populates="created_by", foreign_keys="[JournalEntry.created_by_user_id]")
-    customer_payments_created: Mapped[List["CustomerPayment"]] = relationship(back_populates="created_by", foreign_keys="[CustomerPayment.created_by_user_id]")# Added
+    customer_payments_created: Mapped[List["CustomerPayment"]] = relationship(back_populates="created_by", foreign_keys="[CustomerPayment.created_by_user_id]")
+    purchase_orders_created: Mapped[List["PurchaseOrder"]] = relationship(back_populates="created_by", foreign_keys="[PurchaseOrder.created_by_user_id]")
+    supplier_payments_created: Mapped[List["SupplierPayment"]] = relationship(back_populates="created_by", foreign_keys="[SupplierPayment.created_by_user_id]") # Added
 
     def __repr__(self):
         return f"<User(id={self.id}, username='{self.username}', role='{self.role.name if self.role else None}')>"

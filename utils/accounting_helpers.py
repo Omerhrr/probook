@@ -10,8 +10,11 @@ ESSENTIAL_ACCOUNT_KEYS = [
     "default_accounts_receivable_account_id",
     "default_cogs_account_id",
     "default_inventory_account_id",
-    "default_cash_on_hand_account_id", # For cash sales/payments
-    # Add other essential accounts like general expense, specific payments, etc.
+    "default_cash_on_hand_account_id", # Used for cash sales and potentially direct cash expense payments
+    "default_accounts_payable_account_id", # For expenses linked to a supplier (creating a payable)
+    "default_operating_expense_account_id", # Default for debit side of general expenses
+    # "default_expense_payment_cash_account_id" is effectively default_cash_on_hand_account_id for now.
+    # If a separate bank/cash account specifically for paying expenses is needed, it can be added.
 ]
 
 def get_branch_accounting_settings(db: Session, branch_id: int) -> Dict[str, int]:

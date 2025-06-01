@@ -3,11 +3,11 @@ from sqlalchemy.orm import relationship, Mapped, mapped_column
 from typing import Optional, List
 from database import Base
 from models.user import User
-from models.branch import Branch # Import Branch
-# Assuming Product and Expense models will be updated or are Mapped-compatible
+from models.branch import Branch
 from models.product import Product
 from models.expense import Expense
-
+from .purchase_order import PurchaseOrder
+from .supplier_payment import SupplierPayment # Ensure SupplierPayment is imported
 
 class Supplier(Base):
     __tablename__ = "suppliers"
@@ -28,3 +28,5 @@ class Supplier(Base):
 
     products: Mapped[List["Product"]] = relationship(back_populates="supplier")
     expenses: Mapped[List["Expense"]] = relationship(back_populates="supplier")
+    purchase_orders: Mapped[List["PurchaseOrder"]] = relationship(back_populates="supplier")
+    payments_made: Mapped[List["SupplierPayment"]] = relationship(back_populates="supplier") # Added

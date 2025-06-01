@@ -41,7 +41,9 @@ class Branch(Base):
     accounts: Mapped[List["Account"]] = relationship(back_populates="branch")
     journal_entries: Mapped[List["JournalEntry"]] = relationship(back_populates="branch")
     accounting_settings: Mapped[List["AccountingSetting"]] = relationship(back_populates="branch")
-    customer_payments: Mapped[List["CustomerPayment"]] = relationship(back_populates="branch") # Added
+    customer_payments: Mapped[List["CustomerPayment"]] = relationship(back_populates="branch")
+    purchase_orders: Mapped[List["PurchaseOrder"]] = relationship(back_populates="branch")
+    supplier_payments: Mapped[List["SupplierPayment"]] = relationship(back_populates="branch") # Added
 
     def __repr__(self):
         return f"<Branch(id={self.id}, name='{self.name}')>"

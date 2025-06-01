@@ -19,7 +19,10 @@ from models.account import Account as AccountModel
 from models.journal_entry import JournalEntry as JournalEntryModel
 from models.journal_entry import JournalEntryItem as JournalEntryItemModel
 from models.accounting_setting import AccountingSetting as AccountingSettingModel
-from models.customer_payment import CustomerPayment as CustomerPaymentModel # Import CustomerPayment
+from models.customer_payment import CustomerPayment as CustomerPaymentModel
+from models.purchase_order import PurchaseOrder as PurchaseOrderModel
+from models.purchase_order import PurchaseOrderItem as PurchaseOrderItemModel
+from models.supplier_payment import SupplierPayment as SupplierPaymentModel # Import SupplierPayment
 
 from schemas.user import User as UserSchema
 from routers import auth, products, suppliers, customers, sales, expenses, reports
@@ -30,7 +33,9 @@ from routers import account_types as account_types_router
 from routers import accounts as accounts_router
 from routers import journal_entries as journal_entries_router
 from routers import accounting_settings as accounting_settings_router
-from routers import customer_payments as customer_payments_router # Import customer_payments router
+from routers import customer_payments as customer_payments_router
+from routers import purchase_orders as purchase_orders_router
+from routers import supplier_payments as supplier_payments_router # Import supplier_payments router
 from dependencies import get_current_active_user
 
 from sqlalchemy.orm import Session
@@ -98,7 +103,9 @@ app.include_router(account_types_router.router)
 app.include_router(accounts_router.router)
 app.include_router(journal_entries_router.router)
 app.include_router(accounting_settings_router.router)
-app.include_router(customer_payments_router.router) # Register customer_payments router
+app.include_router(customer_payments_router.router)
+app.include_router(purchase_orders_router.router)
+app.include_router(supplier_payments_router.router) # Register supplier_payments router
 
 
 @app.get("/users/me/", response_model=UserSchema)

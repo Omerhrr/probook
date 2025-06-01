@@ -6,8 +6,8 @@ from models.user import User
 # Import Branch and other related models for type hinting
 from models.branch import Branch
 from models.supplier import Supplier
-from models.sale import SaleItem # Assuming SaleItem model is in models.sale
-
+from models.sale import SaleItem
+from .purchase_order import PurchaseOrderItem # Ensure PurchaseOrderItem is imported
 
 class Product(Base):
     __tablename__ = "products"
@@ -32,8 +32,7 @@ class Product(Base):
     # Supplier model needs `products: Mapped[List["Product"]] = relationship(back_populates="supplier")`
     supplier: Mapped[Optional["Supplier"]] = relationship(back_populates="products")
 
-    # SaleItem model needs `product: Mapped["Product"] = relationship(back_populates="sale_items")`
     sale_items: Mapped[List["SaleItem"]] = relationship(back_populates="product")
+    purchase_order_items: Mapped[List["PurchaseOrderItem"]] = relationship(back_populates="product") # Added
 
-    # Branch model needs `products: Mapped[List["Product"]] = relationship(back_populates="branch")`
     branch: Mapped["Branch"] = relationship(back_populates="products", lazy="joined")
