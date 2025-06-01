@@ -1,9 +1,10 @@
 "use client"; // Required for event handlers and hooks in App Router
 
 import React, { useState } from 'react';
-import { Container, TextField, Button, Typography, Box, Alert } from '@mui/material';
+import { Container, TextField, Button, Typography, Box, Alert, Grid, Link as MuiLink } from '@mui/material';
 import { useRouter } from 'next/navigation'; // For redirecting after login
 import { useAuth } from '@/contexts/AuthContext';
+import Link as NextLink from 'next/link';
 
 const LoginPage = () => {
   const router = useRouter();
@@ -86,7 +87,13 @@ const LoginPage = () => {
           >
             {isLoading ? 'Signing In...' : 'Sign In'}
           </Button>
-          {/* TODO: Add link to registration page or forgot password */}
+          <Grid container justifyContent="flex-end" sx={{ mt: 1 }}>
+            <Grid item>
+              <MuiLink component={NextLink} href="/(pages)/register" variant="body2">
+                Don't have an account? Sign Up
+              </MuiLink>
+            </Grid>
+          </Grid>
         </Box>
       </Box>
     </Container>
