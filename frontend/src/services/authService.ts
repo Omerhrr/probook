@@ -30,6 +30,17 @@ interface UserResponse {
     branch?: any; // Consider defining a Branch interface
 }
 
+// Interface for the reset password payload
+interface ResetPasswordPayload {
+  token: string;
+  new_password: string;
+}
+
+// Interface for the reset password response (typically a success message)
+interface ResetPasswordResponse {
+  message: string;
+}
+
 // Login function
 // The FastAPI /token endpoint expects form data (username, password)
 // Content-Type: application/x-www-form-urlencoded
@@ -89,4 +100,5 @@ export const registerUser = async (userData: UserCreatePayload): Promise<UserRes
 export default {
   login,
   registerUser,
+  resetPassword,
 };
