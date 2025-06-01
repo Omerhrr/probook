@@ -87,7 +87,12 @@ const LoginPage = () => {
           >
             {isLoading ? 'Signing In...' : 'Sign In'}
           </Button>
-          <Grid container justifyContent="flex-end" sx={{ mt: 1 }}>
+          <Grid container justifyContent="space-between" sx={{ mt: 1 }}>
+            <Grid item>
+              <MuiLink component={NextLink} href="/(pages)/forgot-password" variant="body2">
+                Forgot Password?
+              </MuiLink>
+            </Grid>
             <Grid item>
               <MuiLink component={NextLink} href="/(pages)/register" variant="body2">
                 Don't have an account? Sign Up
